@@ -1,6 +1,6 @@
 ---
 name: frontend-architecture-reviewer
-description: Use when reviewing, auditing, or onboarding a frontend codebase — triggers on requests to review architecture, map project structure, detect patterns, generate onboarding docs, trace data flow, or analyze Vue/Nuxt/React/Next.js organization.
+description: Use when reviewing, auditing, or onboarding a frontend codebase — triggers on requests to review architecture, review a PR diff for regressions, map project structure, detect patterns, generate onboarding or feature docs, generate team conventions, trace data flow, or analyze Vue/Nuxt/React/Next.js organization.
 ---
 
 # Purpose
@@ -22,6 +22,9 @@ Specializations: Vue 3, Nuxt 3, React, Next.js, TypeScript, SSR, enterprise fron
 | `/data-flow` | Feature or folder | Traced flow: API → mapper → store → component |
 | `/smells` | Any code | Anti-pattern scan only |
 | `/audit [area]` | Code + area name | Deep dive: `components` `stores` `api` `ssr` `performance` `testing` `security` |
+| `/pr-review` | Git diff or list of changed files | Architecture regression report for the changeset |
+| `/conventions` | Folder tree + key files | Team coding conventions document derived from detected patterns |
+| `/docs [feature\|component]` | Feature folder or component file | Feature or component documentation |
 
 ---
 
@@ -347,6 +350,201 @@ Missing layer flags:
 ⚠️ No mapper — backend field names (snake_case) present in template
 ⚠️ No query hook — raw fetch in component, responses not cached
 ⚠️ Store holding server data — should move to TanStack Query
+```
+
+---
+
+# `/pr-review` — PR / Diff Architecture Review
+
+Input: a git diff (`git diff main...branch`) or a list of changed files with their contents.
+
+Focus exclusively on what the changeset introduces or removes — not a full codebase audit.
+
+**Check for:**
+
+| Concern | What to look for |
+|---|---|
+| Layer bypass | Component importing directly from API layer, skipping service/mapper |
+| New coupling | Feature importing from another feature's internals |
+| Pattern regression | Change moves away from the detected architecture (e.g. raw fetch in a component in a codebase using query hooks) |
+| SSR safety | New `window` / `document` usage without guard, new module-level state |
+| Security | New `v-html`, new localStorage token handling, new unguarded env var |
+| Missing abstraction | Logic that duplicates an existing composable or service |
+| Type safety | `any` or type assertions introduced in typed areas |
+
+**Output format:**
+```
+## PR Architecture Review
+
+### Regressions 🔴🟠
+[Issues introduced by this diff that violate the existing architecture]
+
+### Warnings 🟡
+[Patterns that deviate or risk future coupling]
+
+### Suggestions 🔵
+[Improvements the author could make while in this area]
+
+### Verdict
+✅ Architecture-safe | ⚠️ Review before merge | 🚫 Needs rework
+```
+
+Verdict rules:
+- ✅ No regressions, warnings acceptable
+- ⚠️ Minor regressions or multiple warnings — should be addressed
+- 🚫 Critical regression, new security risk, or pattern violation that will compound
+
+---
+
+# `/conventions` — Team Conventions Document
+
+Derive a living conventions document from the detected architecture and patterns in the codebase. Output is something a new developer can follow from day one.
+
+**Generate these sections:**
+
+```md
+# [Project Name] — Frontend Conventions
+
+## Architecture Pattern
+[One paragraph: what pattern is used and the single most important rule to follow]
+
+## File & Folder Naming
+- Components: PascalCase.vue (UserCard.vue)
+- Composables: camelCase with `use` prefix (useAuth.ts)
+- Stores: camelCase with `Store` suffix (usersStore.ts)
+- Types/interfaces: PascalCase (UserDto, User)
+- API files: [domain].api.ts
+- Mapper files: [domain].mapper.ts
+
+## Component Rules
+- Max ~300 lines — extract composable or child component beyond this
+- No direct API calls in components — use query hooks or composables
+- Props interface defined separately and exported
+- Loading / error / empty states always handled
+
+## State Management Rules
+- Server state (API data): TanStack Query — never duplicate in Pinia
+- Client state (UI): Pinia stores, domain-scoped
+- Store actions do not format or transform data — that belongs in mappers
+
+## API / Data Rules
+- All fetch calls go through /api service files
+- Backend responses always mapped through /mappers before use
+- Error handling normalized at the service layer
+
+## Composable Rules
+- One responsibility per composable
+- Composables in /features/[domain]/composables unless truly global
+- SSR-safe by default: no direct browser API access without `import.meta.client` guard
+
+## Form Rules
+- Form values typed with Zod schema inference
+- Default values object exported alongside schema
+- `toFormValues(model)` helper for edit forms
+
+## Naming Conventions
+| Thing | Convention | Example |
+|---|---|---|
+| Component | PascalCase | UserTable.vue |
+| Composable | useX | useUserFilters.ts |
+| Store | useXStore | useUsersStore.ts |
+| Query key | xKeys.y() | userKeys.list() |
+| Mapper fn | mapX | mapUser() |
+| DTO type | XDto | UserDto |
+| Model type | X | User |
+
+## What to Avoid
+[Derived from smells found in the codebase]
+```
+
+---
+
+# `/docs` — Feature & Component Documentation
+
+Two modes based on input:
+
+## Feature Documentation
+
+Input: a feature folder (all or key files).
+
+```md
+# [Feature Name]
+
+## Purpose
+[What this feature does and which user-facing flows it owns]
+
+## Folder Structure
+[Annotated file tree with role of each file]
+
+## Data Flow
+API → [service file] → [mapper] → [query hook] → [component(s)]
+
+## Key Files
+| File | Role |
+|---|---|
+| users.api.ts | Fetch layer — typed $fetch calls |
+| user.mapper.ts | Transforms UserDto → User |
+| useUsersQuery.ts | TanStack Query hook, cache keys, stale time |
+| UserTable.vue | Primary list view |
+| UserForm.vue | Create/edit form |
+
+## State
+- Server state: useUsersQuery (TanStack Query)
+- Client state: useUsersStore — selected rows, active filters
+
+## How to Extend
+- Adding a new field: update UserDto → User model → mapper → form schema
+- Adding a new view: add component, wire to existing query hook
+- Adding a new action: add to users.api.ts → mutation in query file → invalidate userKeys.all
+
+## Edge Cases & Gotchas
+[Nullable fields, SSR guards, known API inconsistencies]
+```
+
+## Component Documentation
+
+Input: a single component file.
+
+```md
+# ComponentName
+
+## Purpose
+[What this component renders and when to use it]
+
+## Props
+| Prop | Type | Required | Default | Description |
+|---|---|---|---|---|
+| users | User[] | ✅ | — | List of users to display |
+| loading | boolean | — | false | Shows skeleton state |
+
+## Events
+| Event | Payload | When |
+|---|---|---|
+| select | User | Row clicked |
+| delete | string (id) | Delete action triggered |
+
+## Slots
+| Slot | Description |
+|---|---|
+| empty | Override default empty state |
+| actions | Additional toolbar actions |
+
+## Usage Example
+\`\`\`vue
+<UserTable
+  :users="usersQuery.data"
+  :loading="usersQuery.isLoading"
+  @select="openUserDrawer"
+/>
+\`\`\`
+
+## Dependencies
+- Composables: useUserFilters
+- Store: useUsersStore (selected rows)
+- Child components: UserRow, UserAvatar
+
+## Notes
+[SSR considerations, accessibility notes, known limitations]
 ```
 
 ---

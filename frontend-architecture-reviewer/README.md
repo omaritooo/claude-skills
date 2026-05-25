@@ -23,6 +23,10 @@ cp -r frontend-architecture-reviewer ~/.claude/skills/
 | `/data-flow` | Traced data path: API → mapper → store → component |
 | `/smells` | Anti-pattern scan only |
 | `/audit [area]` | Deep dive into one area |
+| `/pr-review` | Architecture regression report for a git diff or changeset |
+| `/conventions` | Team coding conventions document derived from detected patterns |
+| `/docs feature` | Full documentation for a feature folder |
+| `/docs component` | Props, events, slots, usage, and dependency docs for a component |
 
 ### Audit areas
 `components` `stores` `api` `ssr` `performance` `testing` `security`
@@ -43,6 +47,14 @@ cp -r frontend-architecture-reviewer ~/.claude/skills/
 /audit ssr [paste composables and setup code]
 
 /smells [paste any code]
+
+/pr-review [paste git diff output]
+
+/conventions [paste folder tree + key files]
+
+/docs feature [paste feature folder contents]
+
+/docs component [paste component file]
 ```
 
 ## Severity Scale
