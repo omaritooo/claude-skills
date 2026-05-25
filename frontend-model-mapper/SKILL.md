@@ -1,8 +1,6 @@
 ---
 name: frontend-model-mapper
 description: Generate frontend-focused TypeScript models, validation schemas, query hooks, and transformation utilities from API responses or OpenAPI schemas.
-version: 1.0
-author: Omar Ashraf
 ---
 
 # Purpose
